@@ -1,0 +1,2 @@
+LIBNAME:=udp
+-include $(LIBMK)
