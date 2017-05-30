@@ -14,12 +14,12 @@ LFLAGS_app_$(APPNAME):=$(LFLAGS)
 LIBS_app_$(APPNAME):=$(LIBS)
 TARGETS:=$(TARGETS) obj/$(APPNAME)
 
-obj/$(APPNAME):	$(OBJ_app_$(APPNAME)) $(foreach l,$(LIBS),obj/lib$l.a) $(foreach l,$(LIBS),obj/lib$l.a)
+obj/$(APPNAME):	$(OBJ_app_$(APPNAME)) $(foreach l,$(LIBS),obj/lib$l.a)
 	g++ $(LFLAGS_app_$(basename $@)) $(OBJ_app_$(basename $@)) $(foreach l,$(LIBS_app_$(basename $@)),-l$l) -Lobj -MMD -o $@
 
 obj/app/$(APPNAME)/%.o:	app/$(APPNAME)/%.cpp make/Reset.mk make/App.mk
 	-mkdir -p $(dir $@)
-	g++ $(CFLAGS_app_$(patsubst obj/app/%/,%,$(dir $@))) $(foreach l,$(LIBS_app_$(patsubst obj/app/%/,%,$(dir $@))),-Ilib/$l) -MMD -c -o $@ $<
+	g++ $(CFLAGS_app_$(patsubst obj/app/%/,%,$(dir $@))) -Ilib -MMD -c -o $@ $<
 
 -include $(patsubst %.o,%.d,$(OBJ_app_$(APPNAME))
 -include make/Reset.mk

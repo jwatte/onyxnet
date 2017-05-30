@@ -1,0 +1,2 @@
+LIBNAME:=onyxutil
+-include $(LIBMK)

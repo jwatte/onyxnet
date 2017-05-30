@@ -1,14 +1,14 @@
 ifeq ($(LIBNAME),)
 $(error "You must specify LIBNAME")
 endif
-ifneq ($(LIBS),)
-$(error "LIBS cannot be speficied for a lib")
-endif
 ifneq ($(TESTNAME),)
 $(error "TESTNAME cannot be speficied for a lib")
 endif
 ifneq ($(APPNAME),)
 $(error "APPNAME cannot be speficied for a lib")
+endif
+ifneq ($(LIBS),)
+$(error "LIBS cannot be speficied for a lib")
 endif
 CPP_lib_$(LIBNAME):=$(wildcard lib/$(LIBNAME)/*.cpp)
 OBJ_lib_$(LIBNAME):=$(patsubst %.cpp,obj/%.o,$(CPP_lib_$(LIBNAME)))
@@ -21,7 +21,7 @@ obj/lib$(LIBNAME).a:	$(OBJ_lib_$(LIBNAME))
 
 obj/lib/$(LIBNAME)/%.o:	lib/$(LIBNAME)/%.cpp make/Reset.mk make/Lib.mk
 	-mkdir -p $(dir $@)
-	g++ $(CFLAGS_lib_$(basename $(dir $@))) -MMD -c -o $@ $<
+	g++ $(CFLAGS_lib_$(basename $(dir $@))) -Ilib -MMD -c -o $@ $<
 
 -include $(patsubst %.o,%.d,$(OBJ_lib_$(LIBNAME)))
 -include make/Reset.mk
