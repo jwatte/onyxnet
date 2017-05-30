@@ -1,3 +1,3 @@
 TESTNAME:=basic
-LIBS:=udp
+LIBS:=onyxudp
 -include $(TESTMK)

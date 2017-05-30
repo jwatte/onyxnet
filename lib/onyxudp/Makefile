@@ -1,2 +1,2 @@
-LIBNAME:=udp
+LIBNAME:=onyxudp
 -include $(LIBMK)

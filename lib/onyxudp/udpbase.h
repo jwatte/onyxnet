@@ -18,6 +18,7 @@ extern "C" {
 
     /* Possible errors */
     enum UDPERR {
+        UDP_OK = 0,
         UDPERR_OUT_OF_MEMORY = 1,
         UDPERR_SOCKET_ERROR = 2,
         UDPERR_IO_ERROR = 3,
@@ -30,6 +31,29 @@ extern "C" {
         UDPPEER_TIMEDOUT = 1,
         UDPPEER_LAST_GROUP_DESTROYED = 2
     };
+
+    /* Payloads are the data within UDP packets (outside of framing/addressing information.)
+     * This is what you "send" and "receive." The ownership and structure of this data is 
+     * internal to the UDP library, but the structure is exposed so that you can efficiently 
+     * talk about data without having to indirect through accessor functions. You may not 
+     * allocate this structure yourself and hand it to the library as if it were a legitimate 
+     * payload. You may not change the values of the structure. You may not attempt to 
+     * interpret the _donttouch members.
+     */
+    typedef struct udp_payload_t {
+        /* The actual payload data -- don't change this pointer */
+        void                *data;
+        /* How much payload data there is */
+        uint16_t            size;
+        /* Don't touch this field */
+        uint16_t            _donttouch1;
+        /* The app_id that sent this payload (must match yours to be received) */
+        uint16_t            app_id;
+        /* The app_version that sent this payload (must be <= yours to be received) */
+        uint16_t            app_version;
+        /* Don't touch this field */
+        void                *_donttouch2;
+    } udp_payload_t;
 
     /* Parameters for the instantiation of the UDP library.
      * This defines how your application will use the library.
@@ -121,7 +145,7 @@ extern "C" {
          * @param peer The peer being removed.
          * @param reason The reason code (timeout or removed)
          */
-        void                (*on_peer_expired)(udp_params_t *params, udp_peer_t *peer, UDPREASON reason);
+        void                (*on_peer_expired)(udp_params_t *params, udp_peer_t *peer, UDPPEER reason);
     } udp_params_t;
 
     /* You pass in udp_group_params_t to a call to udp_group_create(). The pointer to this struct 
@@ -163,29 +187,6 @@ extern "C" {
          */
         void                (*on_peer_removed)(udp_group_params_t *params, udp_peer_t *peer, int reason);
     } udp_group_params_t;
-
-    /* Payloads are the data within UDP packets (outside of framing/addressing information.)
-     * This is what you "send" and "receive." The ownership and structure of this data is 
-     * internal to the UDP library, but the structure is exposed so that you can efficiently 
-     * talk about data without having to indirect through accessor functions. You may not 
-     * allocate this structure yourself and hand it to the library as if it were a legitimate 
-     * payload. You may not change the values of the structure. You may not attempt to 
-     * interpret the _donttouch members.
-     */
-    typedef struct udp_payload_t udp_payload_t {
-        /* The actual payload data -- don't change this pointer */
-        void                *data;
-        /* How much payload data there is */
-        uint16_t            size;
-        /* Don't touch this field */
-        uint16_t            _donttouch1;
-        /* The app_id that sent this payload (must match yours to be received) */
-        uint16_t            app_id;
-        /* The app_version that sent this payload (must be <= yours to be received) */
-        uint16_t            app_version;
-        /* Don't touch this field */
-        void                *_donttouch2;
-    } udp_payload_t;
 
     /* Represent an internet address in text. This will typically be stored as a dotted-quad 
      * for IPv4, or colon-hex format for IPv6. The port will be decimal digits.
