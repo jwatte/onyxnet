@@ -13,216 +13,64 @@
 #include <assert.h>
 
 #if defined(__cplusplus)
-
-/* Specialize hash if your key is not POD
- *
- *      template<> struct hash<mytype> {
- *          size_t operator()(mytype const &k) {
- *              size_t value = .. compute hash function .. ;
- *              return value;
- *          }
- *      };
- */
-template<typename K> struct hash {
-    size_t operator()(K const &k) {
-        size_t ret = 1;
-        unsigned char *p = (unsigned char *)&k;
-        unsigned char *q = p + sizeof(k);
-        while (p != q) {
-            /* some randomly chosen primes */
-            ret = ret * 22511 + 33469 + *p;
-            p++;
-        }
-        return ret;
-    }
-};
-
-/* Hash table from K to V, using a specified hash functor */
-template<typename K, typename V, typename Hash=hash<K> > struct hashtable {
-
-    enum {
-        /* How many slots are available at a minimum */
-        kMinTopSize = 32
-    };
-    struct iterator;
-    struct node;
-
-    /* create an empty hashtable */
-    hashtable() {
-        numitems = 0;
-        topsize = kMinTopSize;
-        top = new node*[topsize];
-        memset(top, 0, sizeof(node *)*topsize);
-    }
-
-    /* @return how many items are currently in the table */
-    size_t size() {
-        return numitems;
-    }
-
-    /* @return an iterator to the element with key k, or the end() iterator */
-    iterator find(K const &k) {
-        node *n = findnode(k);
-        return iterator(this, n);
-    }
-
-    /* Make sure the key k contains the value v, inserting or overwriting as necessary.
-     * @param k the key to look up or insert
-     * @param v the value to store at the key
-     * @return an iterator to the created/updated value
-     */
-    iterator assign(K const &k, V const &v) {
-        node *n = findnode(k);
-        if (n != NULL) {
-            n->v = v;
-            return iterator(this, n);
-        }
-        n = new node(k, v);
-        size_t bucket = n->code & (topsize-1);
-        n->next = top[bucket];
-        top[bucket] = n;
-        ++numitems;
-        if (numitems > topsize) {
-            rehash(topsize*2);
-        }
-        return iterator(this, n);
-    }
-
-    /* Remove the item referenced.
-     * @param i an iterator referencing the value to remove.
-     */
-    void remove(iterator const &i) {
-        assert(i.table == this);
-        assert(numitems > 0);
-        size_t bucket = i.node->code & (topsize-1);
-        node **npp = &top[bucket];
-        while (**npp != i.node) {
-            npp = &(*npp)->next;
-        }
-        *npp = i.node->next;
-        delete i.node;
-        --numitems;
-        if (topsize > kMinTopSize && numitems <= topsize/2) {
-            rehash(topsize/2);
-        }
-    }
-
-    /* @return an iterator to the first element in the hash table */
-    iterator begin() {
-        for (size_t i = 0; i != topsize; ++i) {
-            if (top[i]) {
-                return iterator(this, top[i]);
-            }
-        }
-        return end();
-    }
-
-    /* @return an iterator representing one-past-the-last-element of the hash table */
-    iterator end() {
-        return iterator(this, NULL);
-    }
-
-    /* @note internal function used by other functions above */
-    node *findnode(K const &k) {
-        size_t code = Hash()(k);
-        size_t bucket = code & (topsize - 1);
-        node *ret = top[bucket];
-        while (ret) {
-            if (ret->code == code) {
-                if (ret->k == k) {
-                    break;
-                }
-            }
-            ret = ret->next;
-        }
-        return ret;
-    }
-
-    /* @note internal function used by insertion/removal to balance hash table size */
-    void rehash(size_t newsize) {
-        assert(!(newsize & (newsize-1)));
-        node *newtop = new node*[newsize];
-        memset(newtop, 0, sizeof(node *)*newsize);
-        for (size_t i = 0; i != topsize; ++i) {
-            node *n = top[i];
-            while (n != NULL) {
-                node *r = n;
-                n = n->next;
-                r->next = newtop[r->code & (newsize-1)];
-                newtop[r->code & (newsize-1)] = r;
-            }
-        }
-        delete[] top;
-        top = newtop;
-        topsize = newsize;
-    }
-
-    struct node {
-
-        node(K const &k, V const &v) : code(Hash()(k)), next(NULL), key(k), value(v) {}
-
-        size_t code;
-        node *next;
-        K key;
-        V value;
-    };
-
-
-    struct iterator {
-
-        iterator() : table(NULL), item(NULL) {}
-        iterator(hashtable *t, node *n) : table(t), item(n) {}
-
-        bool operator==(iterator const &o) const {
-            return item == o.item;
-        }
-        iterator &operator++() {
-            forward();
-            return *this;
-        }
-        iterator operator++(int) {
-            iterator old(*this);
-            forward();
-            return old;
-        }
-        V &operator*() {
-            return item->v;
-        }
-        V &value() {
-            return item->v;
-        }
-        K const &key() {
-            return item->k;
-        }
-        void forward() {
-            if (item == NULL) {
-                return;
-            }
-            if (item->next) {
-                item = item->next;
-                return;
-            }
-            size_t slot = item->code & (table->topsize-1);
-            while (slot != table->topsize-1) {
-                ++slot;
-                item = table->top[slot];
-                if (item != NULL) {
-                    return;
-                }
-            }
-            item = NULL;
-        }
-        hashtable *table;
-        node *item;
-    };
-
-    node **top;
-    size_t topsize;
-    size_t numitems;
-};
-
-extern "C"
+extern "C" {
 #endif
-int is_hashtable_awesome();
+
+/* Given some data that is POD and doesn't contain uninitialized padding/fillers, 
+ * compute a well-distributed hash function of the data.
+ * @param data Pointer to the data
+ * @param size Size of the data
+ * @return The hash code computed on the contents
+ * @note The hash function should return different values for string that are only
+ * subtly different. For example, the string of a single 0-byte, or the string of 
+ * two 0-bytes, should be distinct. Similarly, the string of AB and the string of 
+ * BA should be distinct.
+ */
+size_t hash_pod(void const *data, size_t size);
+
+typedef struct hash_node_t {
+    struct          hash_node_t *next;
+    size_t          code;
+} hash_node_t;
+
+typedef struct hash_table_t {
+    hash_node_t     **top;
+    size_t          top_size;
+    size_t          item_size;
+    size_t          num_items;
+    uint32_t        flags;
+    size_t          (*hash_func)(void const *item, size_t size);
+    int             (*comp_func)(void const *a, void const *b, size_t size);
+} hash_table_t;
+
+typedef struct hash_iterator_t {
+    hash_table_t    *table;
+    hash_node_t     *node;
+} hash_iterator_t;
+
+enum {
+    /* If HASHTABLE_POINTERS is set, then each item actually stored in the table
+     * is a pointer to some data that you manage storage of. If it's not set, then 
+     * the hash table copies items of the given size into the table on assignment.
+     * @note This affects how hash_func() and comp_func() are called. When the 
+     * pointers flag is set, the stored pointers are dereferenced before comparing.
+     */
+    HASHTABLE_POINTERS = 0x1
+};
+
+hash_table_t *hash_table_init(hash_table_t *table, size_t item_size, uint32_t flags);
+void hash_table_deinit(hash_table_t *table);
+
+void *hash_table_find(hash_table_t *table, void *key);
+void *hash_table_assign(hash_table_t *table, void *key);
+int hash_table_remove(hash_table_t *table, void *key);
+void *hash_table_begin(hash_table_t *table, hash_iterator_t *iter);
+void *hash_table_next(hash_iterator_t *iter);
+
+
+#if defined(__cplusplus)
+}
+#endif
+
 
 #endif  //  onyxutil_hashtable_h
