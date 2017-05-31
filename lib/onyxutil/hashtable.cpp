@@ -1,6 +1,7 @@
 
 #include "hashtable.h"
 #include <string.h>
+#include <stdlib.h>
 
 
 size_t hash_pod(void const *data, size_t size) {
@@ -15,12 +16,17 @@ size_t hash_pod(void const *data, size_t size) {
     return ret;
 }
 
-hash_table_t *hash_table_init(hash_table_t *table, size_t item_size, uint32_t flags) {
+hash_table_t *hash_table_init(
+        hash_table_t *table,
+        size_t item_size,
+        uint32_t flags,
+        size_t (*hash_fun)(void const *data, size_t size),
+        int (*comp_fun)(void const *a, void const *b, size_t size)) {
     memset(table, 0, sizeof(*table));
     table->item_size = item_size;
     table->flags = flags;
-    table->hash_func = hash_pod;
-    table->comp_func = memcmp;
+    table->hash_func = hash_fun;
+    table->comp_func = comp_fun;
     return table;
 }
 
@@ -44,8 +50,8 @@ void *hash_table_find(hash_table_t *table, void *key) {
         return NULL;
     }
     size_t code = table->hash_func(key, table->item_size);
-    size_t bucket = code & (table->topsize - 1);
-    node *n = table->top[bucket];
+    size_t bucket = code & (table->top_size - 1);
+    hash_node_t *n = table->top[bucket];
     while (n) {
         if (n->code == code) {
             void *nodekey = (void *)(n + 1);
@@ -63,7 +69,7 @@ void *hash_table_find(hash_table_t *table, void *key) {
 
 void *hash_table_assign(hash_table_t *table, void *key) {
     if (table->top == NULL) {
-        table->top = (void **)malloc(sizeof(void *) * 32);
+        table->top = (hash_node_t **)malloc(sizeof(void *) * 32);
         if (!table->top) {
             return NULL;
         }
@@ -74,7 +80,7 @@ void *hash_table_assign(hash_table_t *table, void *key) {
     //  Find the object if it exists
     size_t code = table->hash_func(key, table->item_size);
     size_t slot = code & (table->top_size - 1);
-    for (node *n = table->top[slot]; n; n = n->next) {
+    for (hash_node_t *n = table->top[slot]; n; n = n->next) {
         if (n->code == code) {
             void *nodekey = n + 1;
             if (table->flags & HASHTABLE_POINTERS) {
@@ -102,6 +108,7 @@ void *hash_table_assign(hash_table_t *table, void *key) {
     } else {
         memcpy(n + 1, key, table->item_size);
     }
+    n->code = code;
     n->next = table->top[slot];
     table->top[slot] = n;
     table->item_count++;
@@ -110,12 +117,12 @@ void *hash_table_assign(hash_table_t *table, void *key) {
 }
 
 int hash_table_remove(hash_table_t *table, void *key) {
-    if (table->num_items == 0) {
+    if (table->item_count == 0) {
         return 0;
     }
     size_t code = table->hash_func(key, table->item_size);
     size_t slot = code & (table->top_size - 1);
-    for (node **npp = &table->top[slot]; *npp; npp = &npp->next) {
+    for (hash_node_t **npp = &table->top[slot]; *npp; npp = &(*npp)->next) {
         if ((*npp)->code == code) {
             void *nodekey = (*npp) + 1;
             if (table->flags & HASHTABLE_POINTERS) {
@@ -134,6 +141,20 @@ int hash_table_remove(hash_table_t *table, void *key) {
     return 0;
 }
 
+static void move_next(hash_iterator_t *iter) {
+    size_t slot = iter->node->code & (iter->table->top_size - 1);
+    iter->node = iter->node->next;
+    if (!iter->node) {
+        while (slot != (iter->table->top_size - 1)) {
+            ++slot;
+            iter->node = iter->table->top[slot];
+            if (iter->node != NULL) {
+                break;
+            }
+        }
+    }
+}
+
 void *hash_table_begin(hash_table_t *table, hash_iterator_t *iter) {
     iter->table = table;
     iter->node = NULL;
@@ -144,6 +165,10 @@ void *hash_table_begin(hash_table_t *table, hash_iterator_t *iter) {
             if (table->flags & HASHTABLE_POINTERS) {
                 ret = *(void **)ret;
             }
+            /* To support "remove the current item" semantics, the iterator 
+             * always points at the next node to be returned.
+             */
+            move_next(iter);
             return ret;
         }
     }
@@ -154,21 +179,9 @@ void *hash_table_next(hash_iterator_t *iter) {
     if (iter->node == NULL) {
         return NULL;
     }
-    size_t slot = iter->node->code & (iter->table->top_size - 1);
-    iter->node = iter->node->next;
-    if (!iter->node) {
-        while (slot != (iter->table->top_size - 1)) {
-            ++slot;
-            iter->node = table->top[slot];
-            if (iter->node != NULL) {
-                break;
-            }
-        }
-    }
-    if (!iter->node) {
-        return NULL;
-    }
-    void *ret = iter->node + 1;
+    hash_node_t *retnode = iter->node;
+    move_next(iter);
+    void *ret = retnode + 1;
     if (iter->table->flags & HASHTABLE_POINTERS) {
         ret = *(void **)ret;
     }

@@ -18,7 +18,7 @@ obj/$(APPNAME):	$(OBJ_app_$(APPNAME)) $(foreach l,$(LIBS),obj/lib$l.a)
 	g++ $(OBJ_app_$(basename $@)) $(foreach l,$(LIBS_app_$(basename $@)),-l$l) $(LFLAGS_app_$(basename $@)) -Lobj -MMD -o $@
 
 obj/app/$(APPNAME)/%.o:	app/$(APPNAME)/%.cpp make/Reset.mk make/App.mk
-	-mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	g++ $(CFLAGS_app_$(patsubst obj/app/%/,%,$(dir $@))) -Ilib -MMD -c -o $@ $<
 
 -include $(patsubst %.o,%.d,$(OBJ_app_$(APPNAME))

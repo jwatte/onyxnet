@@ -18,8 +18,10 @@ obj/test_$(TESTNAME):	$(OBJ_test_$(TESTNAME)) $(foreach l,$(LIBS),obj/lib$l.a)
 	g++ $(OBJ_test_$(patsubst obj/test_%,%,$@)) $(foreach l,$(LIBS_test_$(patsubst obj/test_%,%,$@)),-l$l) $(LFLAGS_test_$(patsubst obj/test_%,%,$@)) -Lobj -MMD -o $@
 	$@
 
+.PRECIOUS:	obj/test_$(TESTNAME)
+
 obj/test/$(TESTNAME)/%.o:	test/$(TESTNAME)/%.cpp make/Reset.mk make/Test.mk
-	-mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	g++ $(CFLAGS_test_$(patsubst obj/test/%/,%,$(dir $@))) -Ilib -MMD -c -o $@ $<
 
 -include $(patsubst %.o,%.d,$(OBJ_test_$(TESTNAME)))

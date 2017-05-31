@@ -20,8 +20,9 @@ obj/lib$(LIBNAME).a:	$(OBJ_lib_$(LIBNAME))
 	ar crs $@ $(OBJ_lib_$(patsubst obj/lib%.a,%,$@))
 
 obj/lib/$(LIBNAME)/%.o:	lib/$(LIBNAME)/%.cpp make/Reset.mk make/Lib.mk
-	-mkdir -p $(dir $@)
-	g++ $(CFLAGS_lib_$(basename $(dir $@))) -Ilib -MMD -c -o $@ $<
+	@mkdir -p $(dir $@)
+	echo CFLAGS_LIB_$(patsubst obj/lib/%/,%,$(dir $@)) is $(CFLAGS_lib_$(patsubst obj/lib/%/,%,$(dir $@)))
+	g++ $(CFLAGS_lib_$(patsubst obj/lib/%/,%,$(dir $@))) -Ilib -MMD -c -o $@ $<
 
 -include $(patsubst %.o,%.d,$(OBJ_lib_$(LIBNAME)))
 -include make/Reset.mk

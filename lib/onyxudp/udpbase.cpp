@@ -20,7 +20,7 @@ struct udp_instance_t {
     int socket;
     int running;
     pthread_t thread;
-    hashtable<udp_addr_t, udp_peer_t *> peers;
+    hash_table_t peers;
 };
 
 struct udp_group_t {
@@ -107,6 +107,7 @@ UDPERR udp_run(udp_instance_t *instance) {
 
 
 int udp_poll(udp_instance_t *instance) {
+    return 0;
 }
 
 
