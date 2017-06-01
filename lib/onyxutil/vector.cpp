@@ -2,28 +2,6 @@
 #include <string.h>
 
 
-vector_t *vector_create(size_t item_size) {
-    if (item_size == 0) {
-        return NULL;
-    }
-    vector_t *ret = (vector_t *)malloc(sizeof(vector_t));
-    if (!ret) {
-        return NULL;
-    }
-    if (vector_init(ret, item_size) < 0) {
-        free(ret);
-        return NULL;
-    }
-    return ret;
-}
-
-void vector_destroy(vector_t *vec) {
-    if (vec) {
-        vector_deinit(vec);
-        free(vec);
-    }
-}
-
 int vector_init(vector_t *vec, size_t item_size) {
     memset(vec, 0, sizeof(*vec));
     vec->item_size = item_size;
@@ -36,6 +14,8 @@ int vector_init(vector_t *vec, size_t item_size) {
 void vector_deinit(vector_t *vec) {
     if (vec) {
         free(vec->items);
+        vec->items = 0;
+        vec->item_count = 0;
     }
 }
 

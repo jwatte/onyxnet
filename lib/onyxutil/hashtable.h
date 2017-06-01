@@ -64,14 +64,18 @@ enum {
 };
 
 /* Initialize a hash table.
+ *
  * You provide the storage for the table struct, but the library will 
  * manage storage of the actual items stored. The table will not allocate 
  * any memory until the first element is added to the table.
+ *
  * Elements must be POD (as in, be able to be copied with memcpy())
+ *
  * A hash table with HASHTABLE_POINTERS flag, stores pointers-to-elements 
  * instead of actual-elements, which means that you manage memory lifetime 
  * of the actual elements. (The hashtable still needs to allocate memory 
  * to manage the pointers, though. No free lunch!)
+ *
  * @param table The table to initialize
  * @param item_size The size of each item within the table. For HASHTABLE_POINTERS 
  * tables, this is the size of the pointed-at element, NOT the size of the pointer.
@@ -97,6 +101,7 @@ hash_table_t *hash_table_init(
         uint32_t flags,
         size_t (*hash_fun)(void const *data, size_t item_size),
         int (*comp_fun)(void const *a, void const *b, size_t item_size));
+
 /* Deallocate all storage for the hash table items. This will leave the table 
  * empty (with zero elements in it) and free all allocated memory.
  * If you use HASHTABLE_POINTERS, it will not free the pointed-at elements 
@@ -111,6 +116,7 @@ void hash_table_deinit(hash_table_t *table);
  * @return The found element, or NULL
  */
 void *hash_table_find(hash_table_t *table, void *key);
+
 /* Make sure that the given element (key) is stored in the table. Adds 
  * the key if it's not present; else update the existing element.
  * @param table The table to insert/update into.
@@ -124,12 +130,14 @@ void *hash_table_find(hash_table_t *table, void *key);
  * the table to be replaced by the new key.
  */
 void *hash_table_assign(hash_table_t *table, void *key);
+
 /* Remove the element that matches the given key from the table, if present.
  * @param table The table to remove from.
  * @param key An element to remove from the table.
  * @return 1 when an element is removed, 0 otherwise (if no match found)
  */
 int hash_table_remove(hash_table_t *table, void *key);
+
 /* Start iterating through a hashtable. Return the first element in the table.
  * As a special rule, if you remove the element returned from the table, that 
  * will not invalidate the iterator. Removing other elements may invalidate the 
@@ -145,6 +153,7 @@ int hash_table_remove(hash_table_t *table, void *key);
  * be returned in the iteration, or may be returned twice.
  */
 void *hash_table_begin(hash_table_t *table, hash_iterator_t *iter);
+
 /* Return the next element in a hash table iteration.
  * @param iter The iterator currently being used.
  * @return NULL when at the end, else pointer to next element.

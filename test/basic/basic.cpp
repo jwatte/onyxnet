@@ -1,8 +1,12 @@
 #include "onyxudp/udpbase.h"
 #include <stdio.h>
+#include <assert.h>
+
+/* this test basically just makes sure the library compiles and loads. */
 
 void basic_error(udp_params_t *, UDPERR code, char const *text) {
     fprintf(stderr, "Error code %d: %s\n", code, text);
+    assert(!"no error is allowed");
 }
 
 struct udp_params_t me = {

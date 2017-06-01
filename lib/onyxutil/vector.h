@@ -12,39 +12,40 @@ extern "C" {
      * to support easy insertion/reallocation/etc.
      */
     struct vector_t {
+        /* Used internally by the library for storage -- MAY NOT POINT AT THE FIRST ELEMENT!
+         * @see vector_item_get() to actually get pointers to elements. Elements ARE stored 
+         * contiguously after the first element, as is customary for a vector (as opposed to 
+         * certain other data structures such as deques/ropes/whatever.)
+         */
         void    *items;
         /* The item_count is the number of actual items in the vector */
         size_t  item_count;
+        /* The size of the items stored in the vector */
         size_t  item_size;
+        /* Used internally by the library */
         size_t  phys_size;
     };
 
-    /* Create a new vector, intended to store items of size item_size.
-     * @param item_size the size of each item in the vector.
-     * @return the allocated vector, or NULL on failure
-     */
-    vector_t *vector_create(size_t item_size);
-    /* Deallocate a vector, destroying the memory in it.
-     * @param vec The vector to deallocate
-     */
-    void vector_destroy(vector_t *vec);
-    /* If you allocate the vector_t yourself, but want the library to manage the contents, 
-     * use vector_init() and vector_deinit() instead of vector_create() and vector_destroy().
-     * @param vec the vector struct to initialize as empty vector.
-     * @return 0 on success, -1 on failure (out of memory)
+    /* Initialize a vector struct to be able to contain items of size item_size.
+     * @param vec The structure to initialize.
+     * @param item_sice The size of items stored in the vector.
+     * @note There is a maximum number of items that can be stored in a vector; @see VECTOR_MAX_COUNT.
      */
     int vector_init(vector_t *vec, size_t item_size);
+
     /* Use vector_deinit() to free memory allocated by vector_init() for vectors whose 
      * vector_t struct you declare yourself.
      * @param vec the vector to free
      */
     void vector_deinit(vector_t *vec);
+
     /* Add an item to the end of the vector, resizing the memory if needed.
      * @param vec the vector to add to
      * @param item the item to add
      * @return the number of items in the vector after the addition, or 0 for error.
      */
     size_t vector_item_append(vector_t *vec, void const *item);
+
     /* Get a pointer to an item in the vector, given its index.
      * @param vec the vector to get an item from
      * @param index the index of the item to get a pointer to
@@ -53,6 +54,7 @@ extern "C" {
      * purposes of iteration.
      */
     void *vector_item_get(vector_t *vec, size_t index);
+
     /* Remove one or more items from a vector, given their index.
      * @param vec the vector to remove from
      * @param index the index of the first item to remove (must be <= item_count)
@@ -60,6 +62,7 @@ extern "C" {
      * @return the number of items removed, or 0 for error
      */
     size_t vector_item_remove(vector_t *vec, size_t index, size_t count);
+
     /* Insert items into the vector at some offset, shuffling other items out of the way
      * in order.
      * @param vec the vector to insert into

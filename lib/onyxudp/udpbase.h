@@ -1,6 +1,21 @@
 #if !defined(udp_udpbase_h)
 #define udp_udpbase_h
 
+/* @page INTRODUCTION
+ *
+ * This library provides a simple-to-use communications layer on top of UDP. The core 
+ * functions are @see udp_initialize() for a server, and @see udp_client_initialize() 
+ * for a client. These functions are independent, and you can allocate zero or more of 
+ * each of those structures in your program.
+ *
+ * You can poll each of the structures yourself using @see udp_poll() and @see udp_client_poll(), 
+ * or you can start threads that take care of this using @see udp_run() and @see udp_client_run().
+ * Note that, if you use threads, the callbacks into your program will be called within the 
+ * context of those threads. The UDP library does not do any thread synchronization of its own, 
+ * and is designed so that if you follow some simple threading rules, you only need to 
+ * synchronize your own application.
+ */
+
 #include <stdint.h>
 
 #if defined(__cplusplus)
@@ -16,20 +31,32 @@ extern "C" {
     /* Represents the actual listening socket and library support for that. */
     typedef struct udp_instance_t udp_instance_t;
 
-    /* Possible errors */
+    /* Possible errors returned by the UDP library. */
     enum UDPERR {
+        /* Everything's hunky-dorey in the world. */
         UDP_OK = 0,
+        /* This is an error where an allocation fails. */
         UDPERR_OUT_OF_MEMORY = 1,
+        /* This is an error with the networking/socket system, such as connection broken. */
         UDPERR_SOCKET_ERROR = 2,
+        /* This is an error in the underlying I/O subsystem. */
         UDPERR_IO_ERROR = 3,
+        /* This is an error related to the address -- such as host not found. */
         UDPERR_ADDRESS_ERROR = 4,
+        /* This is an error you could have prevented by passing in valid arguments. */
         UDPERR_INVALID_ARGUMENT = 5
     };
 
     /* Possible peer reasons */
     enum UDPPEER {
+        /* No traffic for some amount of time makes Jack a dull boy. */
         UDPPEER_TIMEDOUT = 1,
-        UDPPEER_LAST_GROUP_DESTROYED = 2
+        /* Peer connections are dropped when the last group of the peer is destroyed. */
+        UDPPEER_LAST_GROUP_DESTROYED = 2,
+        /* Peers may be disconnected explicitly through function calls. Note that if the 
+         * disconnect message is lost, the peer may instead get to UDPPEER_TIMEDOUT state.
+         */
+        UDPPEER_CLIENT_DISCONNECTED = 3
     };
 
     /* Payloads are the data within UDP packets (outside of framing/addressing information.)
@@ -81,29 +108,34 @@ extern "C" {
          * value is 0, the default of 4711 is used.
          */
         uint16_t            port;
+
         /* The maximum possible payload size. Should be in the range of 4..65496, and generally 
          * should be in the low thousands. If the value is 0, the default of 1200 is used, which 
          * is a value that works over almost all networks. (larger values may have trouble with 
          * IPv6 fragmentation, depending on factors.)
          */
         uint16_t            max_payload_size;
+
         /* An ID that is unique to your application, to tell your application apart from other 
          * applications that may also be using the same UDP port on the same network at the same 
          * time. Pick a random number. No, more random. NO, MORE RANDOM!
          */
         uint16_t            app_id;
+
         /* The version of your application. Each outgoing packet is tagged with the version that 
          * sent it, and the receiving application must be of the same version or higher to not 
          * filter it out, unless a message has already been sent to the address from which the 
          * higher version was received.
          */
         uint16_t            app_version;
+
         /* If interface is not NULL, then it needs to specify the address of a local network 
          * interface on which to listen for connections. When it is NULL, the UDP library will 
          * listen to all the machine interfaces. To only listen to the internal loopback interface 
          * you might specify the string "127.0.0.1".
          */
         char const          *interface;
+
         /* The error callback is called when some error happens inside the library. The error may 
          * or may not be recoverable. Errors during initialization are also reported here. For 
          * functions that do not report an error code, the error callback is the best way to find 
@@ -117,6 +149,7 @@ extern "C" {
          * will be the UDP library thread if you use udp_run() or your own thread otherwise.
          */
         void                (*on_error)(udp_params_t *params, UDPERR code, char const *text);
+
         /* When using the udp_run() threaded implementation, the idle() function will be called 
          * with some frequency, to give your application a chance to do work that has to be done 
          * from within the polling thread.
@@ -124,6 +157,7 @@ extern "C" {
          * @note This will only be called if you use udp_run(), not if you use udp_poll().
          */
         void                (*on_idle)(udp_params_t *params);
+
         /* When a packet is received from an IP address/port that doesn't currently have an active 
          * peer attached to a group, the library will forward the payload to this callback.
          * If you want to refer to the payload after this callback returns, you must call 
@@ -136,6 +170,7 @@ extern "C" {
          * to the peer, you must add the peer to a group from within this callback.
          */
         void                (*on_peer_new)(udp_params_t *params, udp_peer_t *peer, udp_payload_t *payload);
+
         /* When a peer is removed from all groups, it will "expire" and no longer be recognized by 
          * the library. If the remote computer sends another packet, you will get another on_new_peer 
          * callback. To tell you that the peer expired, this callback is called.
@@ -199,6 +234,12 @@ extern "C" {
         char                port[8];
     } udp_addr_t;
 
+    /* A binary address with opaque internal format.
+     */
+    typedef struct udp_conn_addr_t {
+        unsigned char data[32];
+    } udp_conn_addr_t;
+
     /* Create a new listening UDP socket, and context. You have to udp_run() it before 
      * it actually does any work! Or you can call udp_poll() on it yourself from a thread
      * of your choosing.
@@ -213,7 +254,8 @@ extern "C" {
      * thread that is not your main thread!
      * @param instance the instance you previously initialized with udp_initialize()
      * @return 0 for success, or an error code.
-     * @note call this only once for a given instance.
+     * @note Call this only once for a given instance. You use either udp_run() or @see 
+     * udp_poll() for a given instance, not both.
      */
     UDPERR udp_run(udp_instance_t *instance);
 
@@ -224,7 +266,8 @@ extern "C" {
      * @return some positive number for number of packets/messages processed, 0 for nothing 
      * to do (or error.) Errors are reported through the error callback in your params.
      * @note call this from one thread only, and make sure it has returned before you call 
-     * udp_terminate()
+     * udp_terminate(). You use either udp_poll() or @see udp_run() in your program, not 
+     * both.
      */
     int udp_poll(udp_instance_t *instance);
 
@@ -366,6 +409,10 @@ extern "C" {
      * @note This timestamp starts at 0 when udp_initialize() is called.
      */
     uint64_t udp_timestamp();
+
+    enum {
+        UDP_DEFAULT_MAX_PAYLOAD_SIZE = 1200
+    };
 
 #if defined(__cplusplus)
 }
