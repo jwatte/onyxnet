@@ -68,18 +68,16 @@ extern "C" {
      * interpret the _donttouch members.
      */
     typedef struct udp_payload_t {
-        /* The actual payload data -- don't change this pointer */
+        /* The actual payload data -- don't change this pointer. */
         void                *data;
-        /* How much payload data there is */
+        /* How much payload data there is -- you must update this if you write the payload. */
         uint16_t            size;
-        /* Don't touch this field */
+        /* Don't touch this field! */
         uint16_t            _refcount;
-        /* The app_id that sent this payload (must match yours to be received) (used on server only) */
+        /* The app_id that sent this payload (must match yours to be received) (used on server receive only) */
         uint16_t            app_id;
-        /* The app_version that sent this payload (must be <= yours to be received) (used on server only) */
+        /* The app_version that sent this payload (must be <= yours to be received) (used on server receive only) */
         uint16_t            app_version;
-        /* Don't touch this field */
-        void                *_owner;
     } udp_payload_t;
 
     /* Parameters for the instantiation of the UDP library.
@@ -220,7 +218,7 @@ extern "C" {
          * @note This function may be called from the library servicing the peer detecting a timeout, 
          * or from a call to udp_group_peer_remove().
          */
-        void                (*on_peer_removed)(udp_group_params_t *params, udp_peer_t *peer, int reason);
+        void                (*on_peer_removed)(udp_group_params_t *params, udp_peer_t *peer, UDPPEER reason);
     } udp_group_params_t;
 
     /* Represent an internet address in text. This will typically be stored as a dotted-quad 
@@ -312,7 +310,7 @@ extern "C" {
      * @note call this from the same thread that calls udp_poll() if you use udp_poll(), or
      * from within a callback from the UDP library if you use udp_run()
      */
-    UDPERR udp_group_peer_add(udp_peer_t *peer, udp_group_t *group);
+    UDPERR udp_group_peer_add(udp_group_t *group, udp_peer_t *peer);
 
     /* Remove a peer from a group to which they belong. Once a peer has been removed from 
      * all groups, the peer will expire.
@@ -322,7 +320,7 @@ extern "C" {
      * @note call this from the same thread that calls udp_poll() if you use udp_poll(), or
      * from within a callback from the UDP library if you use udp_run()
      */
-    UDPERR udp_group_peer_remove(udp_peer_t* peer, udp_group_t *group);
+    UDPERR udp_group_peer_remove(udp_group_t *group, udp_peer_t* peer);
 
     /* Get a list of all peers within a group.
      * @param opeers a pointer to an array to fill in with peer pointers.
@@ -333,7 +331,7 @@ extern "C" {
      * @note call this from the same thread that calls udp_poll() if you use udp_poll(), or
      * from within a callback from the UDP library if you use udp_run()
      */
-    int udp_group_peers_peek(udp_peer_t **opeers, int nmax, udp_group_t *group);
+    int udp_group_peers_peek(udp_group_t *group, udp_peer_t **opeers, int nmax);
 
     /* Get a list of all groups that a peer belongs to.
      * @param ogroups a pointer to an array to fill in with group pointers.
@@ -344,7 +342,7 @@ extern "C" {
      * @note call this from the same thread that calls udp_poll() if you use udp_poll(), or
      * from within a callback from the UDP library if you use udp_run()
      */
-    int udp_peer_groups_peek(udp_group_t **ogroups, int nmax, udp_peer_t *peer);
+    int udp_peer_groups_peek(udp_peer_t *peer, udp_group_t **ogroups, int nmax);
 
     /* Given a payload, enqueue it for sending to every peer within the given group.
      * @param group The group to broadcast the payload to.
@@ -366,7 +364,7 @@ extern "C" {
      * @note call this from the same thread that calls udp_poll() if you use udp_poll(), or
      * from within a callback from the UDP library if you use udp_run()
      */
-    UDPERR udp_peer_payload_enqueue(udp_payload_t *payload, udp_peer_t *peer);
+    UDPERR udp_peer_payload_enqueue(udp_peer_t *peer, udp_payload_t *payload);
 
     /* Get or make an empty payload object that you can put data into.
      * @param instance The context within which to get the payload. The payload can be 

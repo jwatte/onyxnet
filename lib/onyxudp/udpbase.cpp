@@ -1,5 +1,6 @@
 #include "udpbase.h"
 #include "protocol.h"
+#include "types.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -10,35 +11,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <pthread.h>
 
 #include <onyxutil/hashtable.h>
 #include <onyxutil/vector.h>
 
-
-struct udp_instance_t {
-    udp_params_t *params;
-    udp_group_t *groups;
-    int socket;
-    int running;
-    pthread_t thread;
-    hash_table_t peers;
-};
-
-struct udp_group_t {
-    udp_instance_t *instance;
-    udp_group_params_t *params;
-    udp_group_t *next;
-    vector_t peers;
-};
-
-struct udp_peer_t {
-    udp_instance_t *instance;
-    uint64_t last_timestamp;
-    vector_t out_queue;
-    vector_t groups;
-    udp_addr_t address;
-};
 
 udp_instance_t *udp_initialize(udp_params_t *params) {
     if (!params->max_payload_size) {

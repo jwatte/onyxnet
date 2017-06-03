@@ -3,11 +3,13 @@
 
 #include "udpbase.h"
 
-#if !defined(__cplusplus)
+#if defined(__cplusplus)
 extern "C" {
 #endif
 
+    /* Represents an instance of the library as created by a client application. */
     typedef struct udp_client_t udp_client_t;
+    /* Represents a connection to a particular remote server from a client instance */
     typedef struct udp_client_connection_t udp_client_connection_t;
     
     /* Specify behavior for the allocated UDP client.
@@ -72,7 +74,7 @@ extern "C" {
          * @param conn The connection that lapsed.
          * @param reason Why the connection lapsed.
          */
-        void                (*on_disconnect)(udp_client_params_t *params, udp_client_connection_t *conn, int reason);
+        void                (*on_disconnect)(udp_client_params_t *params, udp_client_connection_t *conn, UDPPEER reason);
     } udp_client_params_t;
     
     /* Allocate a UDP client. This opens a socket, which can be used to connect to zero or more 
@@ -161,7 +163,7 @@ extern "C" {
      */
     udp_payload_t *udp_client_payload_get(udp_client_t *instance);
 
-#if !defined(__cplusplus)
+#if defined(__cplusplus)
 }
 #endif
 

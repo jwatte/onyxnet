@@ -1,6 +1,7 @@
 #include "udpclient.h"
 #include "udpbase.h"
 #include "protocol.h"
+#include "types.h"
 
 #include <onyxutil/vector.h>
 #include <onyxutil/hashtable.h>
@@ -9,27 +10,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
 
-
-struct udp_client_t {
-    udp_client_params_t *params;
-    int socket;
-    int running;
-    pthread_t thread;
-    hash_table_t connections;
-};
-
-struct udp_client_connection_t {
-    udp_conn_addr_t addr;
-    udp_client_t *client;
-    udp_payload_t *conn_payload;
-    vector_t outgoing;
-    uint64_t last_transmit;
-    uint64_t last_receive;
-};
 
 size_t connection_hash(void const *data, size_t sz) {
     return hash_pod(data, sizeof(udp_conn_addr_t));
@@ -199,7 +182,7 @@ UDPERR udp_client_disconnect(udp_client_connection_t *conn) {
 }
 
 UDPERR udp_client_payload_send(udp_client_connection_t *conn, udp_payload_t *payload) {
-    return UDPERR_INVALID_ARGUMENT; /* TODO */
+    return UDPERR_INVALID_ARGUMENT; // TODO
 }
 
 static void *udp_client_run_func(void *iptr) {
@@ -228,7 +211,6 @@ UDPERR udp_client_run(udp_client_t *client) {
 }
 
 int udp_client_poll(udp_client_t *client) {
-    /* TODO: implement me */
     return 0;
 }
 
