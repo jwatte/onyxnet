@@ -108,7 +108,8 @@ extern "C" {
      * @param client The client that is connecting.
      * @param addr The address to connect to.
      * @param payload The first packet to send. This packet may be repeatedly sent until the server responds.
-     * Can be NULL, in which case a logically empty packet is sent (and returned.)
+     * Can be NULL, in which case a logically empty packet is sent (and returned.) This function takes 
+     * ownership of the argument, even if it returns an error.
      * @return A udp_client_connection_t structure, or NULL for error (such as duplicate address to 
      * another existing connection.) The actual error is reported through on_error().
      */
@@ -151,6 +152,14 @@ extern "C" {
      * @note You either use udp_client_poll() or @see udp_client_run(), not both.
      */
     int udp_client_poll(udp_client_t *client);
+
+    /* @see udp_payload_get()
+     * @param client The client context to allocate a payload from.
+     * @return The allocated payload, or NULL for failure.
+     * @note Payloads are NOT fungible between instances / clients. If allocated on a particular client, 
+     * only use it with instances of that client function, and on that client's thread.
+     */
+    udp_payload_t *udp_client_payload_get(udp_client_t *instance);
 
 #if !defined(__cplusplus)
 }

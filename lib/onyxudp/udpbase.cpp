@@ -1,4 +1,5 @@
 #include "udpbase.h"
+#include "protocol.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -14,48 +15,6 @@
 #include <onyxutil/hashtable.h>
 #include <onyxutil/vector.h>
 
-
-/* Packet format:
- *
- * All data fields are little-endian. Sorry, network gurus, but the world is 
- * little endian, and doing the work to swap the data in both sending and 
- * receiving ends (both of which run x86 or ARM in little-endian mode) makes 
- * no sense.
- *
- * <8-byte packet:
- * invalid
- *
- * 8-byte control packet:
- * crc16 (2 bytes)
- * command (2 bytes)
- * app_id (2 bytes)
- * app_version (2 bytes)
- *
- * >8-byte data packet:
- * crc32 (4 bytes)
- * app_id (2 bytes)
- * app_version (2 bytes)
- * <data> <N bytes>
- *
- * In each case, the CRC is calculated on all data following the CRC field 
- * to the end of the packet.
- *
- * For later versions of the protocol, perhaps cryptography will be added, in which 
- * case more fields will go into the header.
- */
-
-struct command_header {
-    uint16_t crc;
-    uint16_t command;
-    uint16_t app_id;
-    uint16_t app_version;
-};
-
-struct data_header {
-    uint32_t crc;
-    uint16_t app_id;
-    uint16_t app_version;
-};
 
 struct udp_instance_t {
     udp_params_t *params;
@@ -84,6 +43,10 @@ struct udp_peer_t {
 udp_instance_t *udp_initialize(udp_params_t *params) {
     if (!params->max_payload_size) {
         params->max_payload_size = UDP_DEFAULT_MAX_PAYLOAD_SIZE;
+    }
+    if (params->max_payload_size < UDP_MIN_PAYLOAD_SIZE) {
+        params->on_error(params, UDPERR_INVALID_ARGUMENT, "udp_initialize(): min_payload_size too small");
+        return NULL;
     }
     if (!params->port) {
         params->port = 4812;
@@ -177,6 +140,7 @@ UDPERR udp_run(udp_instance_t *instance) {
 
 
 int udp_poll(udp_instance_t *instance) {
+    /* TODO: implement me */
     return 0;
 }
 

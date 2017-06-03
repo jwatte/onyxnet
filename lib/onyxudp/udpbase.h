@@ -73,13 +73,13 @@ extern "C" {
         /* How much payload data there is */
         uint16_t            size;
         /* Don't touch this field */
-        uint16_t            _donttouch1;
-        /* The app_id that sent this payload (must match yours to be received) */
+        uint16_t            _refcount;
+        /* The app_id that sent this payload (must match yours to be received) (used on server only) */
         uint16_t            app_id;
-        /* The app_version that sent this payload (must be <= yours to be received) */
+        /* The app_version that sent this payload (must be <= yours to be received) (used on server only) */
         uint16_t            app_version;
         /* Don't touch this field */
-        void                *_donttouch2;
+        void                *_owner;
     } udp_payload_t;
 
     /* Parameters for the instantiation of the UDP library.
@@ -411,7 +411,8 @@ extern "C" {
     uint64_t udp_timestamp();
 
     enum {
-        UDP_DEFAULT_MAX_PAYLOAD_SIZE = 1200
+        UDP_DEFAULT_MAX_PAYLOAD_SIZE = 1200,
+        UDP_MIN_PAYLOAD_SIZE = 32
     };
 
 #if defined(__cplusplus)
