@@ -1,3 +1,3 @@
 TESTNAME:=basic
-LIBS:=onyxudp
+LIBS:=onyxudp onyxutil
 -include $(TESTMK)

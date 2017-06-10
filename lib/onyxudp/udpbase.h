@@ -56,7 +56,9 @@ extern "C" {
         /* Peers may be disconnected explicitly through function calls. Note that if the 
          * disconnect message is lost, the peer may instead get to UDPPEER_TIMEDOUT state.
          */
-        UDPPEER_CLIENT_DISCONNECTED = 3
+        UDPPEER_CLIENT_DISCONNECTED = 3,
+        /* Removed from group */
+        UDPPEER_REMOVED_FROM_GROUP = 4
     };
 
     /* Payloads are the data within UDP packets (outside of framing/addressing information.)

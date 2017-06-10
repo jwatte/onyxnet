@@ -34,6 +34,7 @@ struct client {
     int num_idles;
     int num_payloads;
     int num_disconnects;
+    int step;
     udp_client_t *client;
     vector_t packets;
 };
@@ -155,6 +156,7 @@ void setup_client(client *c) {
     c->params.on_idle = c_on_idle;
     int r = vector_init(&c->packets, sizeof(udp_payload_t *));
     assert(r == 0);
+    c->step = 0;
     c->client = udp_client_initialize(&c->params);
     assert(c->client != NULL);
 }
@@ -169,19 +171,41 @@ void terminate_client(client *c) {
     memset(c, 0, sizeof(*c));
 }
 
+void step_server(server *s) {
+    udp_poll(s->instance);
+}
+
+udp_addr_t afmt;
+udp_conn_addr_t addr;
+
+void step_client(client *c) {
+    switch (c->step) {
+        case 0:
+            udp_client_connect(c->client, &addr, NULL);
+            break;
+    }
+    c->step++;
+    udp_client_poll(c->client);
+}
 
 int main() {
     setup_server(&server1);
     step_server(&server1);
 
-    setup_client(&client1, "ClientA");
+    sprintf(afmt.addr, "127.0.0.1");
+    sprintf(afmt.port, "12345");
+    int r = udp_client_address_resolve(&afmt, &addr);
+    assert(r == UDP_OK);
+
+    setup_client(&client1);
     step_client(&client1);
+    assert(server1.num_peers_new == 1);
     step_server(&server1);
     step_client(&client1);
     step_server(&server1);
     step_client(&client1);
 
-    setup_client(&client2, "ClientB");
+    setup_client(&client2);
     step_client(&client1);
     step_client(&client2);
     step_server(&server1);

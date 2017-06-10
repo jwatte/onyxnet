@@ -1,3 +1,3 @@
 TESTNAME:=clientserver
-LIBS:=udpudp udputil
+LIBS:=onyxudp onyxutil
 -include $(TESTMK)

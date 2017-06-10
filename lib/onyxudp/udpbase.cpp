@@ -120,4 +120,115 @@ int udp_poll(udp_instance_t *instance) {
     return 0;
 }
 
+udp_group_t *udp_group_create(udp_instance_t *instance, udp_group_params_t *params) {
+    udp_group_t *ret = (udp_group_t *)malloc(sizeof(udp_group_t));
+    memset(ret, 0, sizeof(*ret));
+    if (vector_init(&ret->peers, sizeof(udp_peer_t *)) < 0) {
+        free(ret);
+        instance->params->on_error(instance->params, UDPERR_OUT_OF_MEMORY, "udp_group_create(): vector_init() failed");
+        return NULL;
+    }
+    ret->instance = instance;
+    ret->params = params;
+    ret->next = instance->groups;
+    return ret;
+}
+
+static void udp_peer_destroy(udp_peer_t *peer) {
+    assert(peer->groups.item_count == 0);
+    peer->instance->params->on_peer_expired(peer->instance->params, peer, UDPPEER_LAST_GROUP_DESTROYED);
+    for (size_t i = 0, n = peer->out_queue.item_count; i != n; ++i) {
+        udp_payload_t *payload = (udp_payload_t *)vector_item_get(&peer->out_queue, i);
+        udp_payload_release(payload);
+    }
+    vector_deinit(&peer->out_queue);
+    vector_deinit(&peer->groups);
+    free(peer);
+}
+
+static UDPERR udp_group_peer_remove_ix(udp_group_t *group, size_t ix) {
+    assert(ix < group->peers.item_count);
+    if (ix >= group->peers.item_count) {
+        return UDPERR_INVALID_ARGUMENT;
+    }
+    udp_peer_t *peer = (udp_peer_t *)vector_item_get(&group->peers, ix);
+    vector_item_remove(&group->peers, ix, 1);
+    group->params->on_peer_removed(group->params, peer, UDPPEER_REMOVED_FROM_GROUP);
+    for (size_t i = 0, n = peer->groups.item_count; i != n; ++i) {
+        udp_group_t *g = (udp_group_t *)vector_item_get(&peer->groups, i);
+        if (g == group) {
+            vector_item_remove(&peer->groups, i, 1);
+            if (peer->groups.item_count == 0) {
+                //  last group keeping peer alive
+                udp_peer_destroy(peer);
+            }
+            return UDP_OK;
+        }
+    }
+    //  The group was not found in the peer? Corrupt internal state.
+    return UDPERR_INVALID_ARGUMENT;
+}
+
+void udp_group_destroy(udp_group_t *group) {
+    udp_params_t *iparams = group->instance->params;
+    //  for each peer
+    int n_errors = 0;
+    for (size_t i = group->peers.item_count; i > 0; --i) {
+        //  remove peer from group
+        UDPERR err = udp_group_peer_remove_ix(group, i-1);
+        if (err != UDP_OK) {
+            ++n_errors;
+        }
+    }
+    //  remove group from instance
+    //  assume not found
+    n_errors++;
+    for (udp_group_t **gp = &group->instance->groups; *gp; gp = &(*gp)->next) {
+        if (*gp == group) {
+            *gp = group->next;
+            //  found it
+            n_errors--;
+            break;
+        }
+    }
+    //  free memory
+    vector_deinit(&group->peers);
+    free(group);
+    if (n_errors > 0) {
+        //  This is a lame error message, but better than a poke in the eye.
+        //  This should never happen, so at least it will provide an indication 
+        //  to go look at how the group got corrupted.
+        iparams->on_error(iparams, UDPERR_INVALID_ARGUMENT, "udp_group_destroy(): errors during group destruction");
+    }
+}
+
+UDPERR udp_group_peer_remove(udp_group_t *group, udp_peer_t *peer) {
+    for (size_t i = 0, n = group->peers.item_count; i != n; ++i) {
+        udp_peer_t *gp = (udp_peer_t *)vector_item_get(&group->peers, i);
+        if (gp == peer) {
+            udp_group_peer_remove_ix(group, i);
+            return UDP_OK;
+        }
+    }
+    return UDPERR_INVALID_ARGUMENT;
+}
+
+UDPERR udp_group_peer_add(udp_group_t *group, udp_peer_t *peer) {
+    for (size_t i = 0, n = peer->groups.item_count; i != n; ++i) {
+        udp_group_t *gp = (udp_group_t *)vector_item_get(&peer->groups, i);
+        if (gp == group) {
+            //  already in the group
+            return UDPERR_INVALID_ARGUMENT;
+        }
+    }
+    size_t i = vector_item_append(&peer->groups, &group);
+    if (i != 0) {
+        size_t j = vector_item_append(&group->peers, &peer);
+        if (j == 0) {
+            vector_item_remove(&peer->groups, i - 1, 1);
+            return UDPERR_OUT_OF_MEMORY;
+        }
+    }
+    return UDP_OK;
+}
 

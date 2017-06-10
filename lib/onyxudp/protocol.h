@@ -49,6 +49,7 @@ struct data_header {
 };
 
 enum {
+    UDP_CMD_IDLE = 0,
     UDP_CMD_CONNECT = 1,
     UDP_CMD_DISCONNECT = 2
 };

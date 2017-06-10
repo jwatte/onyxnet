@@ -142,7 +142,7 @@ udp_client_connection_t *udp_client_connect(udp_client_t *client, udp_conn_addr_
             return NULL;
         }
         command_header hdr = { 0, UDP_CMD_CONNECT, client->params->app_id, client->params->app_version };
-        assert(sizeof(hdr) == 6);
+        assert(sizeof(hdr) == 8);
         hdr.crc16 = update_crc16(&hdr.command, 6, 0);
         memcpy(payload->data, &hdr, 8);
         payload->size = 8;
@@ -210,7 +210,101 @@ UDPERR udp_client_run(udp_client_t *client) {
     return UDP_OK;
 }
 
+//  Very few networks have a RTT greater than 100 ms these days
+#define CONNECT_RETRANSMIT_INTERVAL 100000
+#define CONNECT_RETRANSMIT_INTERVAL_INCREMENT 20000
+#define CONNECT_RETRANSMIT_COUNT 10
+
+int udpcns_initial(udp_client_connection_t *conn, uint64_t now) {
+    if (now - conn->last_transmit > (CONNECT_RETRANSMIT_INTERVAL + conn->ntransmit * CONNECT_RETRANSMIT_INTERVAL_INCREMENT)) {
+        conn->last_transmit = now;
+        if (conn->ntransmit < CONNECT_RETRANSMIT_COUNT) {
+            conn->ntransmit++;
+            udp_payload_hold(conn->conn_payload);
+            if (udp_client_payload_send(conn, conn->conn_payload) != UDP_OK) {
+                return -1;
+            }
+        } else {
+            //  timed out -- kill it
+            return -1;
+        }
+    }
+}
+
+int udpcns_preconnect(udp_client_connection_t *conn, uint64_t now) {
+    conn->state = UDPCNS_INITIAL;
+    return udpcns_initial(conn, now);
+}
+
+#define IDLE_RETRANSMIT_INTERVAL 600000
+#define IDLE_TIMEOUT_INTERVAL 5000000
+
+int udpcns_connected(udp_client_connection_t *conn, uint64_t now) {
+    if (now - conn->last_receive > IDLE_TIMEOUT_INTERVAL) {
+        //  timed out -- go away
+        return -1
+    }
+    if (now - conn->last_transmit > IDLE_RETRANSMIT_INTERVAL) {
+        conn->last_transmit = now;
+        udp_payload *pl = udp_client_payload_get(conn->client);
+        command_header h = { 0, UDP_CMD_IDLE, conn->client->app_id, conn->client->app_version };
+        assert(sizeof(h) == 8);
+        h.crc16 = update_crc16(&h->command, 6);
+        pl->data_size = sizeof(command_header);
+        memcpy(pl->data, &h, sizeof(h));
+        if (vector_item_append(&conn->outgoing, &pl, 1) == 0) {
+            udp_payload_release(pl);
+            conn->client->params->on_error(conn->client->params, UDPERR_OUT_OF_MEMORY, "udpcns_connected(): idle packet could not be enqueued");
+            return -1;
+        }
+    }
+}
+
+int udpcns_final(udp_client_connection_t *conn, uint64_t) {
+}
+
+int udpcns_dead(udp_client_connection_t *conn, uint64_t) {
+    return -1;
+}
+
+int (*(udp_client_poll_connection[]))(udp_client_connection_t *conn, uint64_t now) = {
+    udpcns_preconnect,
+    udpcns_initial,
+    udpcns_connected,
+    udpcns_final,
+    udpcns_dead
+};
+
+void udp_client_connection_destroy(udp_client_connection_t *conn, UDPPEER reason) {
+    if (conn->state >= UDPCNS_CONNECTED) {
+        conn->client->params->on_disconnect(conn->client->params, conn, reason);
+    }
+    hash_table_remove(&conn->client->connections, this);
+    if (conn->conn_payload) {
+        udp_payload_release(conn->conn_payload);
+    }
+    for (size_t i = 0, n = conn->outgoing.item_count; i != n; ++i) {
+        udp_payload_release((udp_payload_t *)vector_item_get(&conn->outgoing, i));
+    }
+    vector_deinit(&conn->outgoing);
+    free(conn);
+}
+
 int udp_client_poll(udp_client_t *client) {
-    return 0;
+    hash_iterator_t iter;
+    int done = 0;
+    for (
+            udp_client_connection_t *conn = (udp_client_connection_t *)hash_table_begin(&client->connections, &iter);
+            conn != NULL;
+            conn = hash_table_next(&iter)) {
+        assert(conn->state >= 0 && conn->state < sizeof(udp_client_poll_connection)/sizeof(udp_client_poll_connection[0]));
+        int n = udp_client_poll_connection[conn->state](conn, now);
+        if (n == -1) {
+            udp_client_connection_destroy(conn, UDPPEER_TIMEDOUT);
+        } else {
+            done += n;
+        }
+    }
+    return done;
 }
 
